@@ -2,12 +2,14 @@ package blom.effestee;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 
 class Fst<I, O> {
 
@@ -46,7 +48,7 @@ class Fst<I, O> {
 
 	final Set<State> states = new HashSet<>();
 	final Set<State> initial = new HashSet<>();
-	final Set<State> accept = new HashSet<>();
+	final Set<State> acceptStates = new HashSet<>();
 
 	final Set<Transition<I, O>> transitions = new HashSet<Transition<I, O>>();
 	private final StateFactory stateFactory = new StateFactory();
@@ -58,6 +60,19 @@ class Fst<I, O> {
 		State create() {
 			return new State(++lastIndex);
 		}
+
+		Map<State, State> importStates(Collection<State> foreign) {
+			Map<State, State> foreignToNative = new HashMap<>();
+			
+			for (State state_other : foreign) {
+				State imported = create();
+				Fst.this.states.add(imported);
+				foreignToNative.put(state_other, imported);
+			}
+	
+			return foreignToNative;
+		}
+
 	}
 
 	static class Label<I, O> {
@@ -79,6 +94,9 @@ class Fst<I, O> {
 			return String.format("(%s,%s)", inputSymbol, outputSymbol);
 		}
 
+		public Label<I, O> copy() {
+			return new Label<>(this.inputSymbol, this.outputSymbol);
+		}
 	}
 
 	static class Transition<In, Out> {
@@ -136,25 +154,51 @@ class Fst<I, O> {
 
 	}
 
-	void concat(Fst<I,O> other) {
+	void concat(Fst<I, O> other) {
 
-		LinkedList<State> stack = new LinkedList<>();
+		Map<State, State> other_to_this = this.stateFactory
+				.importStates(other.states);
+
+		Stack<State> stack = new Stack<>();
 		stack.addAll(other.initial);
-		
-		Map<State,State> otherToThisStates = new HashMap<>();
-		
-		while( !stack.isEmpty() ) {
-			
-			State current = stack.pop();
-			
-//			otherToThisStates.
-			
-//			for
-			
+
+		// for (State other_initial : other.initial) {
+		// this.makeInitial(other_to_this.get(other_initial));
+		// }
+
+		for (State accept : this.acceptStates) {
+			this.setAccept(accept, false);
 		}
-		
-		
-	}	
+
+		while (!stack.isEmpty()) {
+			State current_foreign = stack.pop();
+
+			if (other.isAccept(current_foreign)) {
+				this.setAccept(other_to_this.get(current_foreign), true);
+			}
+
+			for (Transition<I, O> out_foreign : current_foreign.outgoing) {
+				addTransition(out_foreign.label.copy(),
+						other_to_this.get(out_foreign.source),
+						other_to_this.get(out_foreign.target));
+				stack.push(out_foreign.target);
+			}
+		}
+
+	}
+
+	private void makeInitial(State state) {
+		this.initial.add(state);
+	}
+
+	private void setAccept(State state, boolean isAccept) {
+		if (isAccept) {
+			this.acceptStates.add(state);
+		} else {
+			this.acceptStates.remove(state);
+		}
+
+	}
 
 	List<int[]> run(List<I> input) {
 
@@ -206,7 +250,7 @@ class Fst<I, O> {
 	}
 
 	private boolean isAccept(State state) {
-		return this.accept.contains(state);
+		return this.acceptStates.contains(state);
 	}
 
 	State addState() {
@@ -223,7 +267,7 @@ class Fst<I, O> {
 
 	State addStateAccept() {
 		State newState = this.addState();
-		this.accept.add(newState);
+		this.acceptStates.add(newState);
 		return newState;
 	}
 
@@ -250,10 +294,24 @@ class Fst<I, O> {
 
 	public static void main(String[] args) {
 
-		Fst<Character, Character> bla = new Fst<>();
+		Fst<Character, Character> chris = fromString("chris");
+		Fst<Character, Character> blom = fromString("blom");
 
+		chris.concat(blom);
+		
+		List<int[]> paths = chris.run(Arrays.asList('c', 'h', 'r', 'i', 's',
+				'b', 'l', 'o', 'm'));
+		for (int[] path : paths) {
+			List<Character> out = chris.readPath(path);
+			System.out.println(out);
+			assert (out.equals(Arrays.asList("CHRIS".toCharArray())));
+		}
+
+	}
+
+	private static Fst<Character, Character> fromString(String test) {
 		State previous = null;
-		String test = "chris";
+		Fst<Character, Character> bla = new Fst<>();
 		for (int i = 0; i < test.length(); i++) {
 
 			State source = previous == null ? bla.addStateInitial() : previous;
@@ -264,13 +322,6 @@ class Fst<I, O> {
 							.charAt(i))), source, target);
 			previous = target;
 		}
-
-		List<int[]> paths = bla.run(Arrays.asList('c', 'h', 'r', 'i', 's'));
-		for (int[] path : paths) {
-			List<Character> out = bla.readPath(path);
-			System.out.println(out);
-			assert (out.equals(Arrays.asList("CHRIS".toCharArray())));
-		}
-
+		return bla;
 	}
 }
