@@ -208,7 +208,7 @@ class Fst<I, O> {
 			q.add(new RunState(initState));
 		}
 
-		List<int[]> solutions = new ArrayList();
+		List<int[]> solutions = new ArrayList<int[]>();
 
 		while (!q.isEmpty()) {
 
