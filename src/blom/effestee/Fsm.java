@@ -1,11 +1,12 @@
 package blom.effestee;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 class Fst<I, O> {
@@ -45,9 +46,10 @@ class Fst<I, O> {
 
 	final Set<State> states = new HashSet<>();
 	final Set<State> initial = new HashSet<>();
+	final Set<State> accept = new HashSet<>();
+
 	final Set<Transition<I, O>> transitions = new HashSet<Transition<I, O>>();
 	private final StateFactory stateFactory = new StateFactory();
-	final Set<State> accept = new HashSet<>();
 
 	class StateFactory {
 
@@ -133,6 +135,26 @@ class Fst<I, O> {
 		int position;
 
 	}
+
+	void concat(Fst<I,O> other) {
+
+		LinkedList<State> stack = new LinkedList<>();
+		stack.addAll(other.initial);
+		
+		Map<State,State> otherToThisStates = new HashMap<>();
+		
+		while( !stack.isEmpty() ) {
+			
+			State current = stack.pop();
+			
+//			otherToThisStates.
+			
+//			for
+			
+		}
+		
+		
+	}	
 
 	List<int[]> run(List<I> input) {
 
@@ -230,15 +252,24 @@ class Fst<I, O> {
 
 		Fst<Character, Character> bla = new Fst<>();
 
-		Transition<Character, Character> last = bla.addTransition(new Label<>(
-				'a', 'b'), bla.addStateInitial(), bla.addState());
+		State previous = null;
+		String test = "chris";
+		for (int i = 0; i < test.length(); i++) {
 
-		last = bla.addTransition(new Label<>('b', 'c'), last.target,
-				bla.addStateAccept());
+			State source = previous == null ? bla.addStateInitial() : previous;
+			State target = i + 1 == test.length() ? bla.addStateAccept() : bla
+					.addState();
+			Transition<Character, Character> transition = bla.addTransition(
+					new Label<>(test.charAt(i), Character.toUpperCase(test
+							.charAt(i))), source, target);
+			previous = target;
+		}
 
-		List<int[]> paths = bla.run(Arrays.asList('a', 'b'));
+		List<int[]> paths = bla.run(Arrays.asList('c', 'h', 'r', 'i', 's'));
 		for (int[] path : paths) {
-			System.out.println(bla.readPath(path));
+			List<Character> out = bla.readPath(path);
+			System.out.println(out);
+			assert (out.equals(Arrays.asList("CHRIS".toCharArray())));
 		}
 
 	}
