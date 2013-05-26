@@ -3,17 +3,23 @@ package blom.effestee;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
 
 class Fst<I, O> {
 
-	static class State {
+	public enum StateType {
+		INITIAL, ACCEPT;
+	}
+
+	static class State implements Comparable<State> {
 		@Override
 		public String toString() {
 			return "" + index;
@@ -44,10 +50,15 @@ class Fst<I, O> {
 				return false;
 			return true;
 		}
+
+		@Override
+		public int compareTo(State o) {
+			return Integer.compare(this.index, o.index);
+		}
 	}
 
 	final Set<State> states = new HashSet<>();
-	final Set<State> initial = new HashSet<>();
+	final Set<State> initialStates = new HashSet<>();
 	final Set<State> acceptStates = new HashSet<>();
 
 	final Set<Transition<I, O>> transitions = new HashSet<Transition<I, O>>();
@@ -63,13 +74,13 @@ class Fst<I, O> {
 
 		Map<State, State> importStates(Collection<State> foreign) {
 			Map<State, State> foreignToNative = new HashMap<>();
-			
+
 			for (State state_other : foreign) {
 				State imported = create();
 				Fst.this.states.add(imported);
 				foreignToNative.put(state_other, imported);
 			}
-	
+
 			return foreignToNative;
 		}
 
@@ -97,6 +108,10 @@ class Fst<I, O> {
 		public Label<I, O> copy() {
 			return new Label<>(this.inputSymbol, this.outputSymbol);
 		}
+
+		public static <I, O> Label<I, O> epsilon() {
+			return null;
+		}
 	}
 
 	static class Transition<In, Out> {
@@ -114,7 +129,8 @@ class Fst<I, O> {
 
 		@Override
 		public String toString() {
-			return String.format("%s -%s-> %s", source, label, target);
+			return String.format("%s -%s-> %s", source, label == null ? " --- "
+					: label, target);
 		}
 
 	}
@@ -131,12 +147,13 @@ class Fst<I, O> {
 					+ ", path=" + path + "]";
 		}
 
-		RunState next(State s, int transitionIndex) {
+		RunState next(State s, int transitionIndex, Label l) {
 
 			// TODO : use something clever to share paths
 			List<Integer> newPath = new LinkedList<>(this.path);
 			newPath.add(transitionIndex);
-			return new RunState(newPath, s, this.position + 1);
+			int advance = l == null ? 0 : 1;
+			return new RunState(newPath, s, this.position + advance);
 		}
 
 		private RunState(List<Integer> path, State state, int position) {
@@ -154,28 +171,38 @@ class Fst<I, O> {
 
 	}
 
+	/**
+	 * @param other
+	 */
 	void concat(Fst<I, O> other) {
 
 		Map<State, State> other_to_this = this.stateFactory
 				.importStates(other.states);
 
-		Stack<State> stack = new Stack<>();
-		stack.addAll(other.initial);
+		Set<State> oldThisAccept = new HashSet<>(this.acceptStates);
+		this.acceptStates.clear();
 
-		// for (State other_initial : other.initial) {
-		// this.makeInitial(other_to_this.get(other_initial));
-		// }
+		for (Entry<State, State> otherTHis : other_to_this.entrySet()) {
 
-		for (State accept : this.acceptStates) {
-			this.setAccept(accept, false);
+			this.setAccept(otherTHis.getValue(),
+					other.isAccept(otherTHis.getKey()));
+
 		}
 
-		while (!stack.isEmpty()) {
-			State current_foreign = stack.pop();
-
-			if (other.isAccept(current_foreign)) {
-				this.setAccept(other_to_this.get(current_foreign), true);
+		for (State thisAccept : oldThisAccept) {
+			// connect accept states to initial states
+			for (State otherInitial : other.initialStates) {
+				addTransition(null, thisAccept, other_to_this.get(otherInitial));
 			}
+		}
+
+		Stack<State> stack = new Stack<>();
+		stack.addAll(other.initialStates);
+
+		while (!stack.isEmpty()) {
+
+			State current_foreign = stack.pop();
+			State current_this = other_to_this.get(current_foreign);
 
 			for (Transition<I, O> out_foreign : current_foreign.outgoing) {
 				addTransition(out_foreign.label.copy(),
@@ -188,7 +215,7 @@ class Fst<I, O> {
 	}
 
 	private void makeInitial(State state) {
-		this.initial.add(state);
+		this.initialStates.add(state);
 	}
 
 	private void setAccept(State state, boolean isAccept) {
@@ -204,7 +231,7 @@ class Fst<I, O> {
 
 		LinkedList<RunState> q = new LinkedList<RunState>();
 
-		for (State initState : initial) {
+		for (State initState : initialStates) {
 			q.add(new RunState(initState));
 		}
 
@@ -227,8 +254,10 @@ class Fst<I, O> {
 				I nextSymbol = input.get(current.position);
 
 				Transition<I, O> transition = current.state.outgoing.get(i);
-				if (transition.label.acceptIn(nextSymbol)) {
-					q.add(current.next(transition.target, i));
+
+				if (transition.label == null
+						|| transition.label.acceptIn(nextSymbol)) {
+					q.add(current.next(transition.target, i, transition.label));
 
 				}
 
@@ -261,7 +290,7 @@ class Fst<I, O> {
 
 	State addStateInitial() {
 		State newState = this.addState();
-		this.initial.add(newState);
+		this.initialStates.add(newState);
 		return newState;
 	}
 
@@ -282,10 +311,13 @@ class Fst<I, O> {
 
 		LinkedList<O> out = new LinkedList<>();
 
-		State s = this.initial.iterator().next();
+		State s = this.initialStates.iterator().next();
 		for (int i = 0; i < path.length; i++) {
 			Transition transition = s.outgoing.get(path[i]);
-			out.add((O) transition.label.outputSymbol);
+
+			if (transition.label != null) {
+				out.add((O) transition.label.outputSymbol);
+			}
 			s = transition.target;
 		}
 		return out;
@@ -296,11 +328,17 @@ class Fst<I, O> {
 
 		Fst<Character, Character> chris = fromString("chris");
 		Fst<Character, Character> blom = fromString("blom");
-
+		//
 		chris.concat(blom);
-		
-		List<int[]> paths = chris.run(Arrays.asList('c', 'h', 'r', 'i', 's',
-				'b', 'l', 'o', 'm'));
+
+		List<Character> ch = Arrays.asList('c', 'h', 'r', 'i', 's');
+
+		List<Character> chbl = Arrays.asList('c', 'h', 'r', 'i', 's', 'b', 'l',
+				'o', 'm');
+
+		System.out.println(chris);
+
+		List<int[]> paths = chris.run(chbl);
 		for (int[] path : paths) {
 			List<Character> out = chris.readPath(path);
 			System.out.println(out);
@@ -323,5 +361,48 @@ class Fst<I, O> {
 			previous = target;
 		}
 		return bla;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder sb = new StringBuilder();
+
+		List<State> states = new ArrayList<>(this.states);
+		Collections.sort(states);
+
+		for (State s : this.states) {
+
+			sb.append(s.index)
+					.append(isAccept(s) ? "#" : isInitial(s) ? ">" : " ")
+					.append(s.outgoing).append("\n");
+		}
+		return sb.toString();
+
+	}
+
+	private boolean isInitial(State s) {
+		return initialStates.contains(s);
+	}
+
+	public boolean acceptIn(I... args) {
+		return !this.run(Arrays.asList(args)).isEmpty();
+	}
+
+	public State addState(StateType... types) {
+		State fresh = this.addState();
+
+		for (StateType type : types) {
+			switch (type) {
+			case INITIAL:
+				this.initialStates.add(fresh);
+				break;
+			case ACCEPT:
+				this.acceptStates.add(fresh);
+				break;
+			default:
+				break;
+			}
+		}
+		return fresh;
 	}
 }
