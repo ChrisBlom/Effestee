@@ -26,6 +26,13 @@ public class TestConcat {
 	}
 
 	@Test
+	public void testEmptyString() {
+		Assert.assertFalse(Fst.fromString("123").acceptIn());
+		Assert.assertTrue(Fst.fromString("").acceptIn());
+	}
+
+	
+	@Test
 	public void testSingleton() {
 
 		Assert.assertFalse(a.acceptIn());
@@ -38,18 +45,19 @@ public class TestConcat {
 		
 		Fst ab = new Fst();
 		ab.addState(StateType.INITIAL,StateType.ACCEPT);
-
-		System.out.println(ab);
-		
-		ab.concat(a);
-		System.out.println(ab);
-		
-		ab.concat(b);
 		
 		
 		System.out.println(ab);
-		Assert.assertFalse(a.acceptIn());
-		Assert.assertFalse(a.acceptIn('a'));
-		Assert.assertTrue(a.acceptIn('a','b'));
+		
+		ab.inplaceConcat(a);
+		System.out.println(ab);
+		
+		ab.inplaceConcat(b);
+		
+		
+		System.out.println(ab);
+		Assert.assertFalse(ab.acceptIn());
+		Assert.assertFalse(ab.acceptIn('a'));
+		Assert.assertTrue(ab.acceptIn('a','b'));
 	}
 }
