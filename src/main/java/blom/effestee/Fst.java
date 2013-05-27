@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
+import java.util.TreeSet;
 
 class Fst<I, O> {
 
@@ -26,7 +27,7 @@ class Fst<I, O> {
 		}
 
 		public final int index;
-		public List<Transition> outgoing = new LinkedList<>();
+		private List<Transition> outgoing = new ArrayList<>(0);
 
 		State(int index) {
 			this.index = index;
@@ -114,7 +115,7 @@ class Fst<I, O> {
 		}
 	}
 
-	static class Transition<In, Out> {
+	static class Transition<In, Out> implements Comparable<Transition<In, Out>> {
 
 		public final Label<In, Out> label;
 
@@ -133,6 +134,17 @@ class Fst<I, O> {
 					: label, target);
 		}
 
+		@Override
+		public int compareTo(Transition<In, Out> o) {
+
+			int onSource = this.source.compareTo(o.source);
+
+			if (onSource == 0) {
+				return this.target.compareTo(o.target);
+			} else {
+				return onSource;
+			}
+		}
 	}
 
 	class RunState {
@@ -174,7 +186,7 @@ class Fst<I, O> {
 	/**
 	 * @param other
 	 */
-	void concat(Fst<I, O> other) {
+	void inplaceConcat(Fst<I, O> other) {
 
 		Map<State, State> other_to_this = this.stateFactory
 				.importStates(other.states);
@@ -182,11 +194,9 @@ class Fst<I, O> {
 		Set<State> oldThisAccept = new HashSet<>(this.acceptStates);
 		this.acceptStates.clear();
 
-		for (Entry<State, State> otherTHis : other_to_this.entrySet()) {
-
-			this.setAccept(otherTHis.getValue(),
-					other.isAccept(otherTHis.getKey()));
-
+		for (Entry<State, State> importPair : other_to_this.entrySet()) {
+			this.setAccept(importPair.getValue(),
+					other.isAccept(importPair.getKey()));
 		}
 
 		for (State thisAccept : oldThisAccept) {
@@ -210,6 +220,52 @@ class Fst<I, O> {
 						other_to_this.get(out_foreign.target));
 				stack.push(out_foreign.target);
 			}
+		}
+
+	}
+
+	/**
+	 * @param other
+	 */
+	void inplaceUnion(Fst<I, O> other) {
+
+		Map<State, State> other_to_this = this.stateFactory
+				.importStates(other.states);
+
+		addFlag(get(other_to_this, other.initialStates), StateType.INITIAL);
+		addFlag(get(other_to_this, other.acceptStates), StateType.ACCEPT);
+
+		for (Transition<I, O> t : other.transitions) {
+			this.addTransition(t.label.copy(), other_to_this.get(t.source),
+					other_to_this.get(t.target));
+		}
+	}
+
+	List<State> get(Map<State, State> map, Collection<State> states) {
+
+		List<State> mapped = new ArrayList<>(states.size());
+		for (State s : states) {
+			mapped.add(map.get(s));
+		}
+		return mapped;
+	}
+
+	private void addFlag(Collection<State> states, StateType flag) {
+
+		for (State s : states) {
+			this.setFlag(s, flag);
+		}
+
+	}
+
+	private void setFlag(State s, StateType flag) {
+
+		switch (flag) {
+		case INITIAL:
+			initialStates.add(s);
+			break;
+		case ACCEPT:
+			acceptStates.add(s);
 		}
 
 	}
@@ -241,12 +297,12 @@ class Fst<I, O> {
 
 			RunState current = q.pop();
 
-			if (isAccept(current.state)) {
-				solutions.add(toIntArray(current.path));
-			}
-
 			if (current.position == input.size()) {
-				continue;
+				if (isAccept(current.state)) {
+					solutions.add(toIntArray(current.path));
+				} else {
+					continue;
+				}
 			}
 
 			for (int i = 0; i < current.state.outgoing.size(); i++) {
@@ -324,12 +380,70 @@ class Fst<I, O> {
 
 	}
 
+	static class StatePair {
+
+		final State fst;
+		final State snd;
+
+		public StatePair(State fst, State snd) {
+			super();
+			this.fst = fst;
+			this.snd = snd;
+		}
+
+		@Override
+		public String toString() {
+			return "<" + fst + "," + snd + ">";
+		}
+
+	}
+
+	static <I, O> Fst<I, O> intersect(Fst<I, O> left, Fst<I, O> rigth) {
+
+		Fst<I, O> intersection = new Fst<I, O>();
+
+		LinkedList<StatePair> stack = new LinkedList<>();
+		// Map<State,StatePair> chart = new HashMap<>();
+		Map<StatePair, State> chart = new HashMap<>();
+
+		for (State l : left.initialStates) {
+			for (State r : left.initialStates) {
+				StatePair lr = new StatePair(l, r);
+				stack.push(lr);
+			}
+		}
+
+		while (!stack.isEmpty()) {
+
+			State l = stack.peek().fst;
+			State r = stack.peek().snd;
+			StatePair lr = stack.pop();
+
+			State s = chart.get(lr);
+			if (s == null) {
+				boolean isInit = left.isInitial(l) && rigth.isInitial(r);
+				boolean isAccept = left.isAccept(l) && rigth.isAccept(r);
+				chart.put(
+						lr,
+						s = intersection.addState(isInit ? StateType.INITIAL
+								: null, isAccept ? StateType.ACCEPT : null));
+			}
+
+			// / TODO implement
+			return null;
+
+		}
+
+		// / TODO implement
+		return null;
+	}
+
 	public static void main(String[] args) {
 
 		Fst<Character, Character> chris = fromString("chris");
 		Fst<Character, Character> blom = fromString("blom");
 		//
-		chris.concat(blom);
+		chris.inplaceConcat(blom);
 
 		List<Character> ch = Arrays.asList('c', 'h', 'r', 'i', 's');
 
@@ -347,17 +461,24 @@ class Fst<I, O> {
 
 	}
 
-	private static Fst<Character, Character> fromString(String test) {
-		State previous = null;
-		Fst<Character, Character> bla = new Fst<>();
-		for (int i = 0; i < test.length(); i++) {
+	public static Fst<Character, Character> fromString(CharSequence string) {
 
+		Fst<Character, Character> bla = new Fst<>();
+		if (string.length() == 0) {
+			bla.addState(StateType.ACCEPT, StateType.INITIAL);
+			return bla;
+		}
+
+		State previous = null;
+
+		for (int i = 0; i < string.length(); i++) {
 			State source = previous == null ? bla.addStateInitial() : previous;
-			State target = i + 1 == test.length() ? bla.addStateAccept() : bla
-					.addState();
+			State target = i + 1 == string.length() ? bla.addStateAccept()
+					: bla.addState();
+
+			char charAt = string.charAt(i);
 			Transition<Character, Character> transition = bla.addTransition(
-					new Label<>(test.charAt(i), Character.toUpperCase(test
-							.charAt(i))), source, target);
+					new Label<>(charAt, charAt), source, target);
 			previous = target;
 		}
 		return bla;
@@ -392,17 +513,19 @@ class Fst<I, O> {
 		State fresh = this.addState();
 
 		for (StateType type : types) {
-			switch (type) {
-			case INITIAL:
-				this.initialStates.add(fresh);
-				break;
-			case ACCEPT:
-				this.acceptStates.add(fresh);
-				break;
-			default:
-				break;
+			if (type != null) {
+				switch (type) {
+				case INITIAL:
+					this.initialStates.add(fresh);
+					break;
+				case ACCEPT:
+					this.acceptStates.add(fresh);
+					break;
+				}
 			}
+
 		}
+
 		return fresh;
 	}
 }
