@@ -436,6 +436,12 @@ class Fst<I, O> {
 
 						stack.push(targetPair);
 
+					} else {
+						
+						if( !intersection.isAccept(source)) {
+							intersection.remove(source);
+						}
+						
 					}
 
 				}
@@ -443,6 +449,12 @@ class Fst<I, O> {
 		}
 
 		return intersection;
+	}
+
+	private void remove(State source) {
+		this.acceptStates.remove(source);
+		this.initialStates.remove(source);
+		this.states.remove(source);
 	}
 
 	/**
