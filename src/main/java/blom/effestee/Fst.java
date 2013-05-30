@@ -398,43 +398,87 @@ class Fst<I, O> {
 
 	}
 
-	static <I, O> Fst<I, O> intersect(Fst<I, O> left, Fst<I, O> rigth) {
+	static <I, O> Fst<I, O> intersect(Fst<I, O> left, Fst<I, O> right) {
 
 		Fst<I, O> intersection = new Fst<I, O>();
 
 		LinkedList<StatePair> stack = new LinkedList<>();
-		// Map<State,StatePair> chart = new HashMap<>();
 		Map<StatePair, State> chart = new HashMap<>();
 
 		for (State l : left.initialStates) {
-			for (State r : left.initialStates) {
+			for (State r : right.initialStates) {
 				StatePair lr = new StatePair(l, r);
+				resolvePair(lr, left, right, chart, intersection);
 				stack.push(lr);
 			}
 		}
 
 		while (!stack.isEmpty()) {
-
 			State l = stack.peek().fst;
 			State r = stack.peek().snd;
 			StatePair lr = stack.pop();
+			State source = chart.get(lr);
 
-			State s = chart.get(lr);
-			if (s == null) {
-				boolean isInit = left.isInitial(l) && rigth.isInitial(r);
-				boolean isAccept = left.isAccept(l) && rigth.isAccept(r);
-				chart.put(
-						lr,
-						s = intersection.addState(isInit ? StateType.INITIAL
-								: null, isAccept ? StateType.ACCEPT : null));
+			// TODO efficient intersection
+			for (Transition fromL : l.outgoing) {
+				for (Transition fromR : r.outgoing) {
+
+					Label both = intersectable(fromL.label, fromR.label);
+					if (both != null) {
+
+						StatePair targetPair = new StatePair(fromL.target,
+								fromR.target);
+
+						State target = resolvePair(targetPair, left, right, chart,
+								intersection);
+
+						intersection.addTransition(both, source, target);
+
+						stack.push(targetPair);
+
+					}
+
+				}
 			}
-
-			// / TODO implement
-			return null;
-
 		}
 
-		// / TODO implement
+		return intersection;
+	}
+
+	/**
+	 * add a new state for the current pair if it doesn't exist yet, //
+	 * inheriting accept/initial status from the elements intersectively.
+	 * 
+	 * @param lr
+	 * @param left
+	 * @param rigth
+	 * @param chart
+	 * @param intersection
+	 * @return
+	 */
+	private static <I, O> State resolvePair(StatePair lr, Fst<I, O> left,
+			Fst<I, O> rigth, final Map<StatePair, State> chart,
+			Fst<I, O> intersection) {
+		if (chart.containsKey(lr)) {
+			return chart.get(lr);
+		} else {
+
+			boolean isInit = left.isInitial(lr.fst) && rigth.isInitial(lr.snd);
+			boolean isAccept = left.isAccept(lr.fst) && rigth.isAccept(lr.snd);
+
+			State intersectionState = intersection.addState(
+					isInit ? StateType.INITIAL : null,
+					isAccept ? StateType.ACCEPT : null);
+			chart.put(lr, intersectionState);
+			return intersectionState;
+		}
+	}
+
+	private static Label intersectable(Label label, Label label2) {
+		if (label.inputSymbol.equals(label2.inputSymbol)
+				&& label.outputSymbol.equals(label2.outputSymbol)) {
+			return label.copy();
+		}
 		return null;
 	}
 
