@@ -14,6 +14,8 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.TreeSet;
 
+import blom.effestee.SemiRing.BooleanRing;
+
 class Fst<I, O> {
 
 	public enum StateType {
@@ -402,6 +404,8 @@ class Fst<I, O> {
 
 		Fst<I, O> intersection = new Fst<I, O>();
 
+		BooleanRing br = new BooleanRing();
+
 		LinkedList<StatePair> stack = new LinkedList<>();
 		Map<StatePair, State> chart = new HashMap<>();
 
@@ -423,25 +427,25 @@ class Fst<I, O> {
 			for (Transition fromL : l.outgoing) {
 				for (Transition fromR : r.outgoing) {
 
-					Label both = intersectable(fromL.label, fromR.label);
+					Label both = intersectable(br, fromL.label, fromR.label);
 					if (both != null) {
 
 						StatePair targetPair = new StatePair(fromL.target,
 								fromR.target);
 
-						State target = resolvePair(targetPair, left, right, chart,
-								intersection);
+						State target = resolvePair(targetPair, left, right,
+								chart, intersection);
 
 						intersection.addTransition(both, source, target);
 
 						stack.push(targetPair);
 
 					} else {
-						
-						if( !intersection.isAccept(source)) {
+
+						if (!intersection.isAccept(source)) {
 							intersection.remove(source);
 						}
-						
+
 					}
 
 				}
@@ -486,9 +490,9 @@ class Fst<I, O> {
 		}
 	}
 
-	private static Label intersectable(Label label, Label label2) {
-		if (label.inputSymbol.equals(label2.inputSymbol)
-				&& label.outputSymbol.equals(label2.outputSymbol)) {
+	private static Label intersectable(BooleanRing br, Label label, Label label2) {
+		if (br.times(label.inputSymbol.equals(label2.inputSymbol),
+				label.outputSymbol.equals(label2.outputSymbol))) {
 			return label.copy();
 		}
 		return null;
