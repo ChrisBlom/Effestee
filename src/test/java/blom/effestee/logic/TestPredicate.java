@@ -1,18 +1,18 @@
 package blom.effestee.logic;
 
-import static blom.effestee.logic.BoolTerm.and;
-import static blom.effestee.logic.BoolTerm.or;
+import static blom.effestee.logic.BooleanTerm.and;
+import static blom.effestee.logic.BooleanTerm.or;
 import static org.junit.Assert.*;
 
 import org.junit.Test;
 
-public class TestCondition {
+public class TestPredicate {
 
 	@Test
 	public void test() {
-		BoolTerm<Character> isA = BoolTerm.is('a');
-		BoolTerm<Character> isB = BoolTerm.is('b');
-		BoolTerm<Character> notA = BoolTerm.notIs('a');
+		BooleanTerm<Character> isA = BooleanTerm.is('a');
+		BooleanTerm<Character> isB = BooleanTerm.is('b');
+		BooleanTerm<Character> notA = BooleanTerm.notIs('a');
 		
 		assertTrue(isA.accepts('a'));
 		assertFalse(notA.accepts('a'));
@@ -20,7 +20,6 @@ public class TestCondition {
 		for (char c : "bcde".toCharArray()) {
 			assertTrue(notA.accepts(c));
 		}
-
 		
 		System.out.println(isA);
 
@@ -31,9 +30,8 @@ public class TestCondition {
 		System.out.println(or(isA, isB));
 
 		for (char c : "ab".toCharArray()) {
-			assertFalse(BoolTerm.and(isA, isB).accepts(c));
+			assertFalse(BooleanTerm.and(isA, isB).accepts(c));
 		}
-
 
 		System.out.println(and( isA, or(isA, isA,isA,isA)));
 		

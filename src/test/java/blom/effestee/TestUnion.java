@@ -4,7 +4,6 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
-import blom.effestee.Fst.Label;
 import blom.effestee.Fst.StateType;
 
 public class TestUnion {
