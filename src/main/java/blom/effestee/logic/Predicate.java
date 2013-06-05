@@ -1,16 +1,16 @@
 package blom.effestee.logic;
 
-class Condition<A> extends BoolTerm<A> {
+class Predicate<A> extends BooleanTerm<A> {
 
 	public final A value;
 
-	Condition(BoolTerm.Polarity polarity, A value) {
+	Predicate(BooleanTerm.Polarity polarity, A value) {
 		super(Flag.BASIC, polarity);
 		this.value = value;
 	}
 
-	public Condition<A> copy() {
-		return new Condition<>(this.polarity, this.value);
+	public Predicate<A> copy() {
+		return new Predicate<>(this.polarity, this.value);
 	}
 
 	void negate() {
@@ -47,7 +47,7 @@ class Condition<A> extends BoolTerm<A> {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		Condition other = (Condition) obj;
+		Predicate other = (Predicate) obj;
 		if (value == null) {
 			if (other.value != null)
 				return false;
