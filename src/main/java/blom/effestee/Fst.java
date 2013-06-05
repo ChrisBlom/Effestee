@@ -12,9 +12,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
-import java.util.TreeSet;
 
-import blom.effestee.SemiRing.BooleanRing;
+import blom.effestee.semiring.BooleanRing;
+
+import com.google.common.collect.HashMultimap;
 
 class Fst<I, O> {
 
@@ -65,11 +66,12 @@ class Fst<I, O> {
 	final Set<State> acceptStates = new HashSet<>();
 
 	final Set<Transition<I, O>> transitions = new HashSet<Transition<I, O>>();
+
 	private final StateFactory stateFactory = new StateFactory();
 
 	class StateFactory {
 
-		int lastIndex = 0;
+		private int lastIndex = 0;
 
 		State create() {
 			return new State(++lastIndex);
@@ -87,66 +89,6 @@ class Fst<I, O> {
 			return foreignToNative;
 		}
 
-	}
-
-	static class Label<I, O> {
-
-		public final I inputSymbol;
-		public final O outputSymbol;
-
-		public Label(I inputSymbol, O outputSymbol) {
-			this.inputSymbol = inputSymbol;
-			this.outputSymbol = outputSymbol;
-		}
-
-		boolean acceptIn(I inSymbol) {
-			return inputSymbol.equals(inSymbol);
-		}
-
-		@Override
-		public String toString() {
-			return String.format("(%s,%s)", inputSymbol, outputSymbol);
-		}
-
-		public Label<I, O> copy() {
-			return new Label<>(this.inputSymbol, this.outputSymbol);
-		}
-
-		public static <I, O> Label<I, O> epsilon() {
-			return null;
-		}
-	}
-
-	static class Transition<In, Out> implements Comparable<Transition<In, Out>> {
-
-		public final Label<In, Out> label;
-
-		State source;
-		State target;
-
-		public Transition(Label<In, Out> label, State source, State target) {
-			this.label = label;
-			this.source = source;
-			this.target = target;
-		}
-
-		@Override
-		public String toString() {
-			return String.format("%s -%s-> %s", source, label == null ? " --- "
-					: label, target);
-		}
-
-		@Override
-		public int compareTo(Transition<In, Out> o) {
-
-			int onSource = this.source.compareTo(o.source);
-
-			if (onSource == 0) {
-				return this.target.compareTo(o.target);
-			} else {
-				return onSource;
-			}
-		}
 	}
 
 	class RunState {
@@ -397,7 +339,6 @@ class Fst<I, O> {
 		public String toString() {
 			return "<" + fst + "," + snd + ">";
 		}
-
 	}
 
 	static <I, O> Fst<I, O> intersect(Fst<I, O> left, Fst<I, O> right) {
@@ -441,13 +382,11 @@ class Fst<I, O> {
 						stack.push(targetPair);
 
 					} else {
-
+						// optimization : remove dead ends
 						if (!intersection.isAccept(source)) {
 							intersection.remove(source);
 						}
-
 					}
-
 				}
 			}
 		}
@@ -490,6 +429,47 @@ class Fst<I, O> {
 		}
 	}
 
+	/**
+	 * add a new state for the current pair if it doesn't exist yet, //
+	 * inheriting accept/initial status from the elements intersectively.
+	 * 
+	 * @param lr
+	 * @param left
+	 * @param rigth
+	 * @param chart
+	 * @param result
+	 * @return
+	 */
+	private static <I, O> State resolveSet(Collection<State> set,
+			Fst<I, O> owner, final Map<Collection<State>, State> chart,
+			Fst<I, O> result) {
+		if (chart.containsKey(set)) {
+			return chart.get(set);
+		} else {
+
+			boolean isInit = false;
+			for (State s : set) {
+				if (owner.isInitial(s)) {
+					isInit = true;
+					break;
+				}
+			}
+
+			boolean isAccept = false;
+			for (State s : set) {
+				if (owner.isAccept(s)) {
+					isAccept = true;
+					break;
+				}
+			}
+			State intersectionState = result.addState(
+					isInit ? StateType.INITIAL : null,
+					isAccept ? StateType.ACCEPT : null);
+			chart.put(set, intersectionState);
+			return intersectionState;
+		}
+	}
+
 	private static Label intersectable(BooleanRing br, Label label, Label label2) {
 		if (br.times(label.inputSymbol.equals(label2.inputSymbol),
 				label.outputSymbol.equals(label2.outputSymbol))) {
@@ -519,6 +499,46 @@ class Fst<I, O> {
 			assert (out.equals(Arrays.asList("CHRIS".toCharArray())));
 		}
 
+	}
+
+	public static <I, O> Fst<I, O> determinize(Fst<I, O> nondet) {
+		LinkedList<Collection<State>> stack = new LinkedList<>();
+		Map<Collection<State>, State> chart = new HashMap<>();
+
+		Fst<I, O> det = new Fst<I, O>();
+
+		stack.push(nondet.initialStates);
+
+		HashMultimap<Label<I, O>, State> transFunction = HashMultimap.create();
+
+		while (!stack.isEmpty()) {
+			Collection<State> currentSet = stack.pop();
+
+			State source = resolveSet(currentSet, nondet, chart, det);
+
+			transFunction.clear();
+			for (State nondetState : currentSet) {
+				// use epsilon reachable states
+				for (Transition t : nondetState.outgoing) {
+					transFunction.put(t.label, t.target);
+				}
+			}
+
+			for (Entry<Label<I, O>, Collection<State>> e : transFunction
+					.asMap().entrySet()) {
+				Label label = e.getKey();
+				Collection<State> targetSet = e.getValue();
+
+				State target = resolveSet(targetSet, nondet, chart, det);
+
+				det.addTransition(label, source, target);
+
+				stack.push(targetSet);
+			}
+
+		}
+
+		return det;
 	}
 
 	public static Fst<Character, Character> fromString(CharSequence string) {
