@@ -4,7 +4,7 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
-import blom.effestee.Fst.StateType;
+import blom.effestee.Fst.StateFlag;
 
 public class TestIntersect {
 

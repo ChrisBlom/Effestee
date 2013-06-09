@@ -1,11 +1,13 @@
 package blom.effestee;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -14,16 +16,23 @@ import java.util.Set;
 import java.util.Stack;
 
 import blom.effestee.semiring.BooleanRing;
+import blom.effestee.semiring.DualSemiRing;
+import blom.effestee.semiring.Pair;
+import blom.effestee.semiring.SemiRing;
+import blom.effestee.semiring.SemiRing.Val;
+import blom.effestee.semiring.SequencesSemiRing;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 
 class Fst<I, O> {
 
-	public enum StateType {
+	public enum StateFlag {
 		INITIAL, ACCEPT;
 	}
 
 	static class State implements Comparable<State> {
+
 		@Override
 		public String toString() {
 			return "" + index;
@@ -65,7 +74,7 @@ class Fst<I, O> {
 	final Set<State> initialStates = new HashSet<>();
 	final Set<State> acceptStates = new HashSet<>();
 
-	final Set<Transition<I, O>> transitions = new HashSet<Transition<I, O>>();
+	final Set<Transition<Pair<I, O>>> transitions = new HashSet<Transition<Pair<I, O>>>();
 
 	private final StateFactory stateFactory = new StateFactory();
 
@@ -93,33 +102,33 @@ class Fst<I, O> {
 
 	class RunState {
 
-		public RunState(State initState) {
+		// keeps track of which transition was picked (by index)
+		private TreeNode<Transition<Pair<I, O>>> paths;
+
+		public RunState(TreeNode<Transition<Pair<I, O>>> root, State initState) {
 			this.state = initState;
+			this.paths = root;
 		}
 
 		@Override
 		public String toString() {
 			return "RunState [state=" + state + ", position=" + position
-					+ ", path=" + path + "]";
+					+ ", path=" + paths + "]";
 		}
 
-		RunState next(State s, int transitionIndex, Label l) {
+		RunState next(Transition t, TreeNode paths) {
 
-			// TODO : use something clever to share paths
-			List<Integer> newPath = new LinkedList<>(this.path);
-			newPath.add(transitionIndex);
-			int advance = l == null ? 0 : 1;
-			return new RunState(newPath, s, this.position + advance);
+			int advance = t.label == null ? 0 : 1;
+			TreeNode addChild = paths.addChild(t);
+			return new RunState(addChild, t.target, this.position + advance);
 		}
 
-		private RunState(List<Integer> path, State state, int position) {
-			this.path = path;
+		private RunState(TreeNode<Transition<Pair<I, O>>> path, State state,
+				int position) {
+			this.paths = path;
 			this.state = state;
 			this.position = position;
 		}
-
-		// copy on write!
-		private List<Integer> path = new LinkedList();
 
 		State state;
 
@@ -146,7 +155,7 @@ class Fst<I, O> {
 		for (State thisAccept : oldThisAccept) {
 			// connect accept states to initial states
 			for (State otherInitial : other.initialStates) {
-				addTransition(null, thisAccept, other_to_this.get(otherInitial));
+				addTransition(thisAccept, other_to_this.get(otherInitial));
 			}
 		}
 
@@ -158,8 +167,8 @@ class Fst<I, O> {
 			State current_foreign = stack.pop();
 			State current_this = other_to_this.get(current_foreign);
 
-			for (Transition<I, O> out_foreign : current_foreign.outgoing) {
-				addTransition(out_foreign.label.copy(),
+			for (Transition<Pair<I, O>> out_foreign : current_foreign.outgoing) {
+				addTransition(out_foreign.label,
 						other_to_this.get(out_foreign.source),
 						other_to_this.get(out_foreign.target));
 				stack.push(out_foreign.target);
@@ -176,11 +185,11 @@ class Fst<I, O> {
 		Map<State, State> other_to_this = this.stateFactory
 				.importStates(other.states);
 
-		addFlag(get(other_to_this, other.initialStates), StateType.INITIAL);
-		addFlag(get(other_to_this, other.acceptStates), StateType.ACCEPT);
+		addFlag(get(other_to_this, other.initialStates), StateFlag.INITIAL);
+		addFlag(get(other_to_this, other.acceptStates), StateFlag.ACCEPT);
 
-		for (Transition<I, O> t : other.transitions) {
-			this.addTransition(t.label.copy(), other_to_this.get(t.source),
+		for (Transition<Pair<I, O>> t : other.transitions) {
+			this.addTransition(t.label, other_to_this.get(t.source),
 					other_to_this.get(t.target));
 		}
 	}
@@ -194,7 +203,7 @@ class Fst<I, O> {
 		return mapped;
 	}
 
-	private void addFlag(Collection<State> states, StateType flag) {
+	private void addFlag(Collection<State> states, StateFlag flag) {
 
 		for (State s : states) {
 			this.setFlag(s, flag);
@@ -202,7 +211,7 @@ class Fst<I, O> {
 
 	}
 
-	private void setFlag(State s, StateType flag) {
+	private void setFlag(State s, StateFlag flag) {
 
 		switch (flag) {
 		case INITIAL:
@@ -227,15 +236,15 @@ class Fst<I, O> {
 
 	}
 
-	List<int[]> run(List<I> input) {
+	TreeNode<Transition<Pair<I, O>>> run(List<I> input) {
 
 		LinkedList<RunState> q = new LinkedList<RunState>();
 
-		for (State initState : initialStates) {
-			q.add(new RunState(initState));
-		}
+		TreeNode<Transition<Pair<I, O>>> root = TreeNode.create();
 
-		List<int[]> solutions = new ArrayList<int[]>();
+		for (State initState : initialStates) {
+			q.add(new RunState(root, initState));
+		}
 
 		while (!q.isEmpty()) {
 
@@ -243,7 +252,7 @@ class Fst<I, O> {
 
 			if (current.position == input.size()) {
 				if (isAccept(current.state)) {
-					solutions.add(toIntArray(current.path));
+					current.paths.markAccept();
 				} else {
 					continue;
 				}
@@ -253,11 +262,12 @@ class Fst<I, O> {
 
 				I nextSymbol = input.get(current.position);
 
-				Transition<I, O> transition = current.state.outgoing.get(i);
+				Transition<Pair<I, O>> transition = current.state.outgoing
+						.get(i);
 
 				if (transition.label == null
-						|| transition.label.acceptIn(nextSymbol)) {
-					q.add(current.next(transition.target, i, transition.label));
+						|| transition.label.value.fst.equals(nextSymbol)) {
+					q.add(current.next(transition, current.paths));
 
 				}
 
@@ -265,7 +275,7 @@ class Fst<I, O> {
 
 		}
 
-		return solutions;
+		return root;
 
 	}
 
@@ -300,27 +310,52 @@ class Fst<I, O> {
 		return newState;
 	}
 
-	Transition<I, O> addTransition(Label<I, O> label, State source, State target) {
-		Transition<I, O> t = new Transition<>(label, source, target);
+	SemiRing<Pair<I, O>> s = new DualSemiRing(null, null);
+
+	Transition<Pair<I, O>> addTransition(Pair<I, O> pair, State source,
+			State target) {
+		Transition<Pair<I, O>> t = new Transition<Pair<I, O>>(s.wrap(pair),
+				source, target);
 		source.outgoing.add(t);
 		this.transitions.add(t);
 		return t;
 	}
 
-	List<O> readPath(int[] path) {
+	private Transition<Pair<I, O>> addTransition(Val wrap, State source,
+			State target) {
+		Transition<Pair<I, O>> t = new Transition<Pair<I, O>>(wrap, source,
+				target);
+		source.outgoing.add(t);
+		this.transitions.add(t);
+		return t;
 
-		LinkedList<O> out = new LinkedList<>();
+	}
 
-		State s = this.initialStates.iterator().next();
-		for (int i = 0; i < path.length; i++) {
-			Transition transition = s.outgoing.get(path[i]);
+	private Transition<Pair<I, O>> addTransition(State source, State target) {
+		Transition<Pair<I, O>> t = new Transition<Pair<I, O>>(null, source,
+				target);
+		source.outgoing.add(t);
+		this.transitions.add(t);
+		return t;
 
-			if (transition.label != null) {
-				out.add((O) transition.label.outputSymbol);
+	}
+
+	Set<List<O>> readPath(List<Transition<Pair<I, O>>> path) {
+
+		SequencesSemiRing<O> lsr = new SequencesSemiRing<>();
+
+		Set<List<O>> out = lsr.one();
+
+		List<Set<List<O>>> labels = new ArrayList<>();
+
+		for (Transition<Pair<I, O>> t : path) {
+			if (t.label != null) {
+				labels.add(Collections.singleton(Collections
+						.singletonList(t.label.value.snd)));
 			}
-			s = transition.target;
 		}
-		return out;
+
+		return lsr.product(labels);
 
 	}
 
@@ -365,10 +400,11 @@ class Fst<I, O> {
 			State source = chart.get(lr);
 
 			// TODO efficient intersection
-			for (Transition fromL : l.outgoing) {
-				for (Transition fromR : r.outgoing) {
+			for (Transition<Pair<I, O>> fromL : l.outgoing) {
+				for (Transition<Pair<I, O>> fromR : r.outgoing) {
 
-					Label both = intersectable(br, fromL.label, fromR.label);
+					SemiRing<Pair<I, O>>.Val both = intersectable(br,
+							fromL.label, fromR.label);
 					if (both != null) {
 
 						StatePair targetPair = new StatePair(fromL.target,
@@ -377,7 +413,9 @@ class Fst<I, O> {
 						State target = resolvePair(targetPair, left, right,
 								chart, intersection);
 
-						intersection.addTransition(both, source, target);
+						intersection.addTransition(
+								fromL.label.ring.wrap(both.value), source,
+								target);
 
 						stack.push(targetPair);
 
@@ -392,6 +430,72 @@ class Fst<I, O> {
 		}
 
 		return intersection;
+	}
+
+	static <A, B, C> Fst<A, C> compose(Fst<A, B> left, Fst<B, C> right) {
+
+		Fst<A, C> intersection = new Fst<>();
+
+		BooleanRing br = new BooleanRing();
+
+		LinkedList<StatePair> stack = new LinkedList<>();
+		Map<StatePair, State> chart = new HashMap<>();
+
+		for (State l : left.initialStates) {
+			for (State r : right.initialStates) {
+				StatePair lr = new StatePair(l, r);
+				resolvePair2(lr, left, right, chart, intersection);
+				stack.push(lr);
+			}
+		}
+
+		while (!stack.isEmpty()) {
+			State l = stack.peek().fst;
+			State r = stack.peek().snd;
+			StatePair lr = stack.pop();
+			State source = chart.get(lr);
+
+			// TODO efficient intersection
+			for (Transition<Pair<A, B>> fromL : l.outgoing) {
+				for (Transition<Pair<B, C>> fromR : r.outgoing) {
+
+					Pair<A, C> both = composable(br, fromL.label,
+							fromR.label);
+					if (both != null) {
+
+						StatePair targetPair = new StatePair(fromL.target,
+								fromR.target);
+
+						State target = resolvePair2(targetPair, left, right,
+								chart, intersection);
+
+						intersection
+								.addTransition(both, source, target);
+
+						stack.push(targetPair);
+
+					} else {
+						// optimization : remove dead ends
+						if (!intersection.isAccept(source)) {
+							intersection.remove(source);
+						}
+					}
+				}
+			}
+		}
+
+		return intersection;
+	}
+
+	private static <A, B, C> Pair<A, C> composable(
+			BooleanRing br, SemiRing<Pair<A, B>>.Val l,
+			SemiRing<Pair<B, C>>.Val r) {
+
+		if( l.value.snd.equals( r.value.fst) ) {
+			return Pair.from( l.value.fst , r.value.snd	);
+		}
+			
+		return null;
 	}
 
 	private void remove(State source) {
@@ -412,8 +516,8 @@ class Fst<I, O> {
 	 * @return
 	 */
 	private static <I, O> State resolvePair(StatePair lr, Fst<I, O> left,
-			Fst<I, O> rigth, final Map<StatePair, State> chart,
-			Fst<I, O> intersection) {
+
+	Fst<I, O> rigth, final Map<StatePair, State> chart, Fst<I, O> intersection) {
 		if (chart.containsKey(lr)) {
 			return chart.get(lr);
 		} else {
@@ -422,8 +526,26 @@ class Fst<I, O> {
 			boolean isAccept = left.isAccept(lr.fst) && rigth.isAccept(lr.snd);
 
 			State intersectionState = intersection.addState(
-					isInit ? StateType.INITIAL : null,
-					isAccept ? StateType.ACCEPT : null);
+					isInit ? StateFlag.INITIAL : null,
+					isAccept ? StateFlag.ACCEPT : null);
+			chart.put(lr, intersectionState);
+			return intersectionState;
+		}
+	}
+
+	private static <A, B, C> State resolvePair2(StatePair lr, Fst<A, B> left,
+
+	Fst<B, C> rigth, final Map<StatePair, State> chart, Fst<A, C> intersection) {
+		if (chart.containsKey(lr)) {
+			return chart.get(lr);
+		} else {
+
+			boolean isInit = left.isInitial(lr.fst) && rigth.isInitial(lr.snd);
+			boolean isAccept = left.isAccept(lr.fst) && rigth.isAccept(lr.snd);
+
+			State intersectionState = intersection.addState(
+					isInit ? StateFlag.INITIAL : null,
+					isAccept ? StateFlag.ACCEPT : null);
 			chart.put(lr, intersectionState);
 			return intersectionState;
 		}
@@ -463,38 +585,41 @@ class Fst<I, O> {
 				}
 			}
 			State intersectionState = result.addState(
-					isInit ? StateType.INITIAL : null,
-					isAccept ? StateType.ACCEPT : null);
+					isInit ? StateFlag.INITIAL : null,
+					isAccept ? StateFlag.ACCEPT : null);
 			chart.put(set, intersectionState);
 			return intersectionState;
 		}
 	}
 
-	private static Label intersectable(BooleanRing br, Label label, Label label2) {
-		if (br.times(label.inputSymbol.equals(label2.inputSymbol),
-				label.outputSymbol.equals(label2.outputSymbol))) {
-			return label.copy();
+	private static <I, O> SemiRing<Pair<I, O>>.Val intersectable(//
+			BooleanRing br, //
+			SemiRing<Pair<I, O>>.Val label, //
+			SemiRing<Pair<I, O>>.Val label2 //
+	) {
+		if (br.times(label.value.fst.equals(label2.value.fst),
+				label.value.snd.equals(label2.value.snd))) {
+			return label;
 		}
 		return null;
 	}
 
 	public static void main(String[] args) {
 
-		Fst<Character, Character> chris = fromString("chris");
-		Fst<Character, Character> blom = fromString("blom");
-		//
-		chris.inplaceConcat(blom);
+		Fst<Character, Character> abc2xyz = formTo("abc", "xyz");
+		Fst<Character, Character> xyz2123 = formTo( "xyz","123");
 
-		List<Character> ch = Arrays.asList('c', 'h', 'r', 'i', 's');
+		Fst<Character, Character> abc2123 = compose(abc2xyz, xyz2123);
+		System.out.println(abc2123);
 
-		List<Character> chbl = Arrays.asList('c', 'h', 'r', 'i', 's', 'b', 'l',
-				'o', 'm');
+		TreeNode<Transition<Pair<Character, Character>>> paths = abc2123
+				.run( Arrays.asList('a','b','c'));
 
-		System.out.println(chris);
-
-		List<int[]> paths = chris.run(chbl);
-		for (int[] path : paths) {
-			List<Character> out = chris.readPath(path);
+		Iterator<List<Transition<Pair<Character, Character>>>> iterator = paths
+				.iterator();
+		for (; iterator.hasNext();) {
+			List<Transition<Pair<Character, Character>>> path = iterator.next();
+			Set<List<Character>> out = abc2123.readPath(path);
 			System.out.println(out);
 			assert (out.equals(Arrays.asList("CHRIS".toCharArray())));
 		}
@@ -502,31 +627,38 @@ class Fst<I, O> {
 	}
 
 	public static <I, O> Fst<I, O> determinize(Fst<I, O> nondet) {
-		LinkedList<Collection<State>> stack = new LinkedList<>();
-		Map<Collection<State>, State> chart = new HashMap<>();
 
 		Fst<I, O> det = new Fst<I, O>();
 
+		ArrayDeque<Collection<State>> stack = new ArrayDeque<>();
+		Map<Collection<State>, State> chart = new HashMap<>();
+
 		stack.push(nondet.initialStates);
 
-		HashMultimap<Label<I, O>, State> transFunction = HashMultimap.create();
-
+		Multimap<SemiRing<Pair<I, O>>.Val, State> transFunction = HashMultimap
+				.create();
 		while (!stack.isEmpty()) {
-			Collection<State> currentSet = stack.pop();
 
-			State source = resolveSet(currentSet, nondet, chart, det);
+			Collection<State> sourceSet = stack.pop();
 
+			State source = resolveSet(sourceSet, nondet, chart, det);
+
+			// compute the transition function
 			transFunction.clear();
-			for (State nondetState : currentSet) {
-				// use epsilon reachable states
-				for (Transition t : nondetState.outgoing) {
+			for (State nondetState : sourceSet) {
+				// TODO epsilon reachable states
+				for (Transition<Pair<I, O>> t : nondetState.outgoing) {
+					assert (t.label != null);
 					transFunction.put(t.label, t.target);
 				}
 			}
 
-			for (Entry<Label<I, O>, Collection<State>> e : transFunction
+			// add transitions XXX merge with calculation of transition
+			// function?
+			for (Entry<SemiRing<Pair<I, O>>.Val, Collection<State>> e : transFunction
 					.asMap().entrySet()) {
-				Label label = e.getKey();
+
+				SemiRing<Pair<I, O>>.Val label = e.getKey();
 				Collection<State> targetSet = e.getValue();
 
 				State target = resolveSet(targetSet, nondet, chart, det);
@@ -545,7 +677,7 @@ class Fst<I, O> {
 
 		Fst<Character, Character> bla = new Fst<>();
 		if (string.length() == 0) {
-			bla.addState(StateType.ACCEPT, StateType.INITIAL);
+			bla.addState(StateFlag.ACCEPT, StateFlag.INITIAL);
 			return bla;
 		}
 
@@ -557,8 +689,34 @@ class Fst<I, O> {
 					: bla.addState();
 
 			char charAt = string.charAt(i);
-			Transition<Character, Character> transition = bla.addTransition(
-					new Label<>(charAt, charAt), source, target);
+			Transition<Pair<Character, Character>> transition = bla
+					.addTransition(
+							Pair.from(Character.toLowerCase(charAt), charAt),
+							source, target);
+			previous = target;
+		}
+		return bla;
+	}
+	
+	public static Fst<Character, Character> formTo(CharSequence in,CharSequence out) {
+
+		Fst<Character, Character> bla = new Fst<>();
+		if (in.length() == 0) {
+			bla.addState(StateFlag.ACCEPT, StateFlag.INITIAL);
+			return bla;
+		}
+
+		State previous = null;
+
+		for (int i = 0; i < in.length(); i++) {
+			State source = previous == null ? bla.addStateInitial() : previous;
+			State target = i + 1 == in.length() ? bla.addStateAccept()
+					: bla.addState();
+
+			Transition<Pair<Character, Character>> transition = bla
+					.addTransition(
+							Pair.from(in.charAt(i),out.charAt(i)),
+							source, target);
 			previous = target;
 		}
 		return bla;
@@ -585,14 +743,10 @@ class Fst<I, O> {
 		return initialStates.contains(s);
 	}
 
-	public boolean acceptIn(I... args) {
-		return !this.run(Arrays.asList(args)).isEmpty();
-	}
-
-	public State addState(StateType... types) {
+	public State addState(StateFlag... types) {
 		State fresh = this.addState();
 
-		for (StateType type : types) {
+		for (StateFlag type : types) {
 			if (type != null) {
 				switch (type) {
 				case INITIAL:
@@ -603,9 +757,17 @@ class Fst<I, O> {
 					break;
 				}
 			}
-
 		}
-
 		return fresh;
+	}
+
+	public boolean acceptIn(I... c) {
+
+		List<I> in = new ArrayList<>();
+		for (I ch : c) {
+			in.add(ch);
+		}
+		return this.run(in).iterator().hasNext();
+
 	}
 }

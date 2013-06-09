@@ -1,10 +1,9 @@
 package blom.effestee;
 
-import junit.framework.Assert;
-
 import org.junit.Test;
 
-import blom.effestee.Fst.StateType;
+import junit.framework.Assert;
+import blom.effestee.semiring.Pair;
 
 public class TestUnion {
 
@@ -12,12 +11,12 @@ public class TestUnion {
 	static Fst<Character, Character> b = new Fst<>();
 
 	static {
-		a.addTransition(new Label('a', 'a'), a.addStateInitial(),
+		a.addTransition(new Pair<>('a', 'a'), a.addStateInitial(),
 				a.addStateAccept());
 		
 		System.out.println(a);
 
-		b.addTransition(new Label('b', 'b'), b.addStateInitial(),
+		b.addTransition(new Pair<>('b', 'b'), b.addStateInitial(),
 				b.addStateAccept());
 
 		System.out.println(b);
@@ -29,7 +28,6 @@ public class TestUnion {
 	public void testUnion() {
 		
 		Fst<Character, Character> ab = new Fst<>();
-
 		ab.inplaceUnion(a);
 		ab.inplaceUnion(b);
 		
