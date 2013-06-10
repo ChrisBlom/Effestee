@@ -59,5 +59,7 @@ public abstract class BooleanTerm<A> {
 	public static <A> BooleanTerm<A> falsum() {
 		return new Connective<>(Polarity.Neg);
 	}
+	
+	abstract boolean satisfiable();
 
 }

@@ -55,4 +55,9 @@ class Predicate<A> extends BooleanTerm<A> {
 			return false;
 		return true;
 	}
+
+	@Override
+	boolean satisfiable() {
+		return true;
+	}
 }

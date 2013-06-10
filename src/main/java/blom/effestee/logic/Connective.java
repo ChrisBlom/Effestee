@@ -65,4 +65,10 @@ public class Connective<A> extends BooleanTerm<A> {
 						this.polarity == Polarity.Pos ? "&" : "|") + ")";
 	}
 
+	@Override
+	boolean satisfiable() {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
 }
