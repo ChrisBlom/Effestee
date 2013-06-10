@@ -1,6 +1,6 @@
 package blom.effestee.semiring;
 
-public final class Pair<A, B> {
+public class Pair<A, B> {
 
 	public final A fst;
 	public final B snd;
@@ -50,7 +50,7 @@ public final class Pair<A, B> {
 		return true;
 	}
 
-	public Pair copy() {
+	public Pair<A, B> copy() {
 		return Pair.from(this.fst, this.snd);
 	}
 
