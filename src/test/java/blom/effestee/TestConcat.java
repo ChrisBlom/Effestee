@@ -4,13 +4,14 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
-import blom.effestee.Fst.StateFlag;
+import blom.effestee.function.F1;
 import blom.effestee.semiring.Pair;
 
 public class TestConcat {
 
-	static Fst<Character, Character> a = new Fst<>();
-	static Fst<Character, Character> b = new Fst<>();
+	static Fst<Pair<Character, Character>> a = new Fst<>();
+	static Fst<Pair<Character, Character>> b = new Fst<>();
+	static F1<Pair<Character, Character>, Character> fstP = F1.fstProj();
 
 	static {
 		a.addTransition(new Pair<>('a', 'a'), a.addStateInitial(),
@@ -27,15 +28,15 @@ public class TestConcat {
 
 	@Test
 	public void testEmptyString() {
-		Assert.assertFalse(Fst.fromString("123").acceptIn());
-		Assert.assertTrue(Fst.fromString("").acceptIn());
+		Assert.assertFalse(Fst.fromString("123").acceptIn(fstP));
+		Assert.assertTrue(Fst.fromString("").acceptIn(fstP));
 	}
 
 	@Test
 	public void testSingleton() {
 
-		Assert.assertFalse(a.acceptIn());
-		Assert.assertTrue(a.acceptIn('a'));
+		Assert.assertFalse(a.acceptIn(fstP));
+		Assert.assertTrue(a.acceptIn(fstP, 'a'));
 
 	}
 
@@ -43,7 +44,7 @@ public class TestConcat {
 	public void testConcat() {
 
 		Fst ab = new Fst();
-		ab.addState(StateFlag.INITIAL, StateFlag.ACCEPT);
+		ab.addState(Fst.StateFlag.INITIAL, Fst.StateFlag.ACCEPT);
 
 		System.out.println(ab);
 
@@ -51,10 +52,10 @@ public class TestConcat {
 		System.out.println(ab);
 
 		ab.inplaceConcat(b);
-		
+
 		System.out.println(ab);
-		Assert.assertFalse(ab.acceptIn());
-		Assert.assertFalse(ab.acceptIn('a'));
-		Assert.assertTrue(ab.acceptIn('a', 'b'));
+		Assert.assertFalse(ab.acceptIn(fstP));
+		Assert.assertFalse(ab.acceptIn(fstP, 'a'));
+		Assert.assertTrue(ab.acceptIn(fstP, 'a', 'b'));
 	}
 }
