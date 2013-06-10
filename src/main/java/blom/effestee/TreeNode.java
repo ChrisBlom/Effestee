@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import blom.effestee.semiring.Pair;
+
 public class TreeNode<S> implements Iterable<List<S>> {
 
 	List<TreeNode<S>> children = new ArrayList<>(0);

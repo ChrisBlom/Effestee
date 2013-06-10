@@ -1,17 +1,14 @@
 package blom.effestee;
 
-import blom.effestee.semiring.SemiRing;
-import blom.effestee.semiring.SemiRing.Val;
-
 class Transition<L> implements Comparable<Transition<L>> {
 
-	public final SemiRing<L>.Val label;
+	public final L label;
 
 	public final Fst.State source;
 	public final Fst.State target;
 
-	public Transition(SemiRing<L>.Val val, Fst.State source, Fst.State target) {
-		this.label = val;
+	public Transition(L label, Fst.State source, Fst.State target) {
+		this.label = label;
 		this.source = source;
 		this.target = target;
 	}
