@@ -10,7 +10,7 @@ public class Pair<A, B> {
 		this.snd = snd;
 	}
 
-	public static <A, B> Pair<A, B> from(A fst, B snd) {
+	public static <A, B> Pair<A, B> of(A fst, B snd) {
 		return new Pair<>(fst, snd);
 	}
 
@@ -51,7 +51,7 @@ public class Pair<A, B> {
 	}
 
 	public Pair<A, B> copy() {
-		return Pair.from(this.fst, this.snd);
+		return Pair.of(this.fst, this.snd);
 	}
 
 }

@@ -10,6 +10,8 @@ import blom.effestee.logic.BooleanTerm.Polarity;
 
 public class Connective<A> extends BooleanTerm<A> {
 
+	final Set<BooleanTerm<A>> subTerms = new HashSet<>(0);
+
 	@SafeVarargs
 	Connective(BooleanTerm.Polarity p, BooleanTerm<A> a, BooleanTerm<A> b,
 			BooleanTerm<A>... elems) {
@@ -26,7 +28,6 @@ public class Connective<A> extends BooleanTerm<A> {
 		super(Flag.COMPOUND, pos);
 	}
 
-	final Set<BooleanTerm<A>> subTerms = new HashSet<>(0);
 
 	@Override
 	boolean accepts(A value) {

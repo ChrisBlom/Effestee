@@ -13,28 +13,27 @@ public class DualSemiRing<A,B> extends
 
 	@Override
 	public Pair<A, B> zero() {
-		return Pair.from(fstRing.zero(), sndRing.zero());
+		return Pair.of(fstRing.zero(), sndRing.zero());
 	}
 
 	@Override
 	public Pair<A, B> one() {
-		return Pair.from(fstRing.one(), sndRing.one());
+		return Pair.of(fstRing.one(), sndRing.one());
 	}
 
 	@Override
 	public Pair<A, B> plus(Pair<A, B> x, Pair<A, B> y) {
-		return Pair
-				.from(fstRing.plus(x.fst, y.fst), sndRing.plus(x.snd, y.snd));
+		return Pair.of(fstRing.plus(x.fst, y.fst), sndRing.plus(x.snd, y.snd));
 	}
 
 	@Override
 	public Pair<A, B> times(Pair<A, B> x, Pair<A, B> y) {
-		return Pair.from(fstRing.times(x.fst, y.fst),
+		return Pair.of(fstRing.times(x.fst, y.fst),
 				sndRing.times(x.snd, y.snd));
 	}
 
 	public SemiRing<Pair<A, B>>.Val wrap(A a, B b) {
-		return wrap(Pair.from(a, b));
+		return wrap(Pair.of(a, b));
 		
 	}
 

@@ -158,7 +158,7 @@ class Fst<L> {
 			}
 		}
 
-		Stack<State> stack = new Stack<>();
+		ArrayDeque<State> stack = new ArrayDeque<>();
 		stack.addAll(other.initialStates);
 
 		while (!stack.isEmpty()) {
@@ -180,7 +180,6 @@ class Fst<L> {
 	 * @param other
 	 */
 	void inplaceUnion(Fst<L> other) {
-
 		Map<State, State> other_to_this = this.stateFactory
 				.importStates(other.states);
 
@@ -667,7 +666,7 @@ class Fst<L> {
 			char charAt = string.charAt(i);
 			Transition<Pair<Character, Character>> transition = bla
 					.addTransition(
-							Pair.from(Character.toLowerCase(charAt), charAt),
+							Pair.of(Character.toLowerCase(charAt), charAt),
 							source, target);
 			previous = target;
 		}
@@ -691,7 +690,7 @@ class Fst<L> {
 					.addState();
 
 			Transition<Pair<Character, Character>> transition = bla
-					.addTransition(Pair.from(in.charAt(i), out.charAt(i)),
+					.addTransition(Pair.of(in.charAt(i), out.charAt(i)),
 							source, target);
 			previous = target;
 		}
