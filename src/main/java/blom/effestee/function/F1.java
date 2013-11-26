@@ -1,5 +1,8 @@
 package blom.effestee.function;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+
 import blom.effestee.semiring.Pair;
 
 public abstract class F1<T1, T2> {
@@ -12,6 +15,7 @@ public abstract class F1<T1, T2> {
 	public static <A, B> SndProj<A, B> sndProj() {
 		return new SndProj<>();
 	}
+	
 	
 	public static class FstProj<A, B> extends F1<Pair<A, B>, A> {
 		@Override

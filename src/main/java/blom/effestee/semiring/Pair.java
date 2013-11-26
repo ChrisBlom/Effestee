@@ -1,5 +1,9 @@
 package blom.effestee.semiring;
 
+import java.lang.invoke.MethodHandle;
+
+import blom.effestee.function.F1;
+
 public class Pair<A, B> {
 
 	public final A fst;
@@ -7,7 +11,7 @@ public class Pair<A, B> {
 
 	public Pair(A fst, B snd) {
 		this.fst = fst;
-		this.snd = snd;
+		this.snd = snd;		
 	}
 
 	public static <A, B> Pair<A, B> of(A fst, B snd) {

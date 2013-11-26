@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
+
 import blom.effestee.semiring.Pair;
 
 public class TreeNode<S> implements Iterable<List<S>> {
@@ -45,32 +47,30 @@ public class TreeNode<S> implements Iterable<List<S>> {
 
 		final ArrayDeque<TreeNode<S>> stack = new ArrayDeque<TreeNode<S>>();
 		stack.add(rootIntermediate);
-		
+
 		List<List<S>> paths = new ArrayList<>();
-		
-		while( !stack.isEmpty()) {
+
+		while (!stack.isEmpty()) {
 			TreeNode<S> node = seekAccept(stack);
-			if( node == null) {
+			if (node == null) {
 				break;
 			}
-			paths.add( node.getPath() );
+			paths.add(node.getPath());
 
-		};
-		
+		}
+		;
+
 		return paths.iterator();
 
 	}
 
 	protected List<S> getPath() {
-
 		ArrayDeque<S> path = new ArrayDeque<S>();
-
 		TreeNode<S> current = this;
 		while (current.parent != null) {
 			path.addFirst(current.value);
 			current = current.parent;
 		}
-
 		return new ArrayList<>(path);
 	}
 
@@ -87,5 +87,10 @@ public class TreeNode<S> implements Iterable<List<S>> {
 
 	private boolean isAccept() {
 		return this.isAccept;
+	}
+
+	@Override
+	public String toString() {
+		return getPath().toString();
 	}
 }

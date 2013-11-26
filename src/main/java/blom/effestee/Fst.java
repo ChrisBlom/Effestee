@@ -2,30 +2,25 @@ package blom.effestee;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.Stack;
 
 import blom.effestee.function.F1;
 import blom.effestee.function.F2;
-import blom.effestee.function.F1.FstProj;
 import blom.effestee.semiring.BooleanRing;
 import blom.effestee.semiring.Pair;
-import blom.effestee.semiring.SequencesSemiRing;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
-class Fst<L> {
+class Fst<Label> {
 
 	public enum StateFlag {
 		INITIAL, ACCEPT;
@@ -74,7 +69,7 @@ class Fst<L> {
 	final Set<State> initialStates = new HashSet<>();
 	final Set<State> acceptStates = new HashSet<>();
 
-	final Set<Transition<L>> transitions = new HashSet<Transition<L>>();
+	final Set<Transition<Label>> transitions = new HashSet<Transition<Label>>();
 
 	private final StateFactory stateFactory = new StateFactory();
 
@@ -103,9 +98,9 @@ class Fst<L> {
 	class RunState {
 
 		// keeps track of which transition was picked (by index)
-		private TreeNode<L> paths;
+		private TreeNode<Label> paths;
 
-		public RunState(TreeNode<L> root, State initState) {
+		public RunState(TreeNode<Label> root, State initState) {
 			this.state = initState;
 			this.paths = root;
 		}
@@ -119,11 +114,11 @@ class Fst<L> {
 		RunState next(Transition t, TreeNode paths) {
 
 			int advance = t.label == null ? 0 : 1;
-			TreeNode<L> addChild = paths.addChild(t.label);
+			TreeNode<Label> addChild = paths.addChild(t.label);
 			return new RunState(addChild, t.target, this.position + advance);
 		}
 
-		private RunState(TreeNode<L> addChild, State state, int position) {
+		private RunState(TreeNode<Label> addChild, State state, int position) {
 			this.paths = addChild;
 			this.state = state;
 			this.position = position;
@@ -138,7 +133,7 @@ class Fst<L> {
 	/**
 	 * @param other
 	 */
-	void inplaceConcat(Fst<L> other) {
+	void inplaceConcat(Fst<Label> other) {
 
 		Map<State, State> other_to_this = this.stateFactory
 				.importStates(other.states);
@@ -166,7 +161,7 @@ class Fst<L> {
 			State current_foreign = stack.pop();
 			State current_this = other_to_this.get(current_foreign);
 
-			for (Transition<L> out_foreign : current_foreign.outgoing) {
+			for (Transition<Label> out_foreign : current_foreign.outgoing) {
 				addTransition(out_foreign.label,
 						other_to_this.get(out_foreign.source),
 						other_to_this.get(out_foreign.target));
@@ -179,14 +174,14 @@ class Fst<L> {
 	/**
 	 * @param other
 	 */
-	void inplaceUnion(Fst<L> other) {
+	void inplaceUnion(Fst<Label> other) {
 		Map<State, State> other_to_this = this.stateFactory
 				.importStates(other.states);
 
 		addFlag(get(other_to_this, other.initialStates), StateFlag.INITIAL);
 		addFlag(get(other_to_this, other.acceptStates), StateFlag.ACCEPT);
 
-		for (Transition<L> t : other.transitions) {
+		for (Transition<Label> t : other.transitions) {
 			this.addTransition(t.label, other_to_this.get(t.source),
 					other_to_this.get(t.target));
 		}
@@ -234,23 +229,29 @@ class Fst<L> {
 
 	}
 
-	<I> TreeNode<L> run(List<I> input, F1<L, I> selector) {
+	<In> List<TreeNode<Label>> getPaths(List<In> input, F1<Label, In> selector) {
 
-		LinkedList<RunState> q = new LinkedList<RunState>();
+		ArrayDeque<RunState> stack = new ArrayDeque<RunState>();
+		TreeNode<Label> root = TreeNode.create();
 
-		TreeNode<L> root = TreeNode.create();
+		List<TreeNode<Label>> acceptedPaths = new ArrayList<>();
 
+		// add initial states to stack
 		for (State initState : initialStates) {
-			q.add(new RunState(root, initState));
+			stack.push(new RunState(root, initState));
 		}
 
-		while (!q.isEmpty()) {
+		System.out.println("Initial states " + initialStates);
 
-			RunState current = q.pop();
+		while (!stack.isEmpty()) {
+			RunState current = stack.pop();
 
 			if (current.position == input.size()) {
 				if (isAccept(current.state)) {
+					// System.out.println("Accepted: " + (input.isEmpty() ? "" :
+					// input.get(current.position-1)));
 					current.paths.markAccept();
+					acceptedPaths.add(current.paths);
 				} else {
 					continue;
 				}
@@ -258,22 +259,23 @@ class Fst<L> {
 
 			for (int i = 0; i < current.state.outgoing.size(); i++) {
 
-				I nextSymbol = input.get(current.position);
+				In nextSymbol = input.get(current.position);
 
-				Transition<L> transition = current.state.outgoing.get(i);
-
+				Transition<Label> transition = current.state.outgoing.get(i);
+				// System.out.println(transition);
 				if (transition.label == null
 						|| selector.$(transition.label).equals(nextSymbol)) {
-					q.add(current.next(transition, current.paths));
+					System.out.printf("match %s - %s %n", nextSymbol,
+							transition.label);
 
+					stack.push(current.next(transition, current.paths));
 				}
 
 			}
 
 		}
 
-		return root;
-
+		return acceptedPaths;
 	}
 
 	private int[] toIntArray(List<Integer> pathList) {
@@ -307,15 +309,15 @@ class Fst<L> {
 		return newState;
 	}
 
-	Transition<L> addTransition(L pair, State source, State target) {
-		Transition<L> t = new Transition<L>(pair, source, target);
+	Transition<Label> addTransition(Label pair, State source, State target) {
+		Transition<Label> t = new Transition<Label>(pair, source, target);
 		source.outgoing.add(t);
 		this.transitions.add(t);
 		return t;
 	}
 
-	private Transition<L> addTransition(State source, State target) {
-		Transition<L> t = new Transition<L>(null, source, target);
+	private Transition<Label> addTransition(State source, State target) {
+		Transition<Label> t = new Transition<Label>(null, source, target);
 		source.outgoing.add(t);
 		this.transitions.add(t);
 		return t;
@@ -562,48 +564,6 @@ class Fst<L> {
 		return null;
 	}
 
-	public static void main(String[] args) {
-
-		Fst<Pair<Character, Character>> abc2xyz = formTo("abc", "xyz");
-		Fst<Pair<Character, Character>> xyz2123 = formTo("xyz", "123");
-
-		F1<Pair<Character, Character>, Character> fstProj = new F1.FstProj<>();
-		F1<Pair<Character, Character>, Character> sndProj = new F1.SndProj<>();
-
-		System.out.println(abc2xyz);
-
-		F2<Pair<Character, Character>, Pair<Character, Character>, Pair<Character, Character>> compo = new F2.PairCompo<>();
-		Fst<Pair<Character, Character>> abc2123 = compose(abc2xyz, xyz2123,
-				sndProj, fstProj, compo);
-		System.out.println(abc2123);
-
-		TreeNode<Pair<Character, Character>> paths = abc2123.run(
-				Arrays.asList('a', 'b', 'c'), fstProj);
-
-		SequencesSemiRing<Character> c = new SequencesSemiRing<>();
-
-		Iterator<List<Pair<Character, Character>>> iterator = paths.iterator();
-		for (; iterator.hasNext();) {
-			List<Pair<Character, Character>> path = iterator.next();
-
-			Set<List<Character>> out = c.one();
-
-			for (Pair<Character, Character> step : path) {
-				Set<List<Character>> p = Collections.singleton(Collections
-						.singletonList(step.snd));
-				out = c.times(out, p);
-			}
-			System.out.println(out);
-			assert (out.equals(Arrays.asList("CHRIS".toCharArray())));
-		}
-
-	}
-
-	private Set<List<Character>> readPath(List<Pair<Character, Character>> path) {
-
-		return null;
-	}
-
 	public static <L> Fst<L> determinize(Fst<L> nondet) {
 
 		Fst<L> det = new Fst<L>();
@@ -737,14 +697,21 @@ class Fst<L> {
 		return fresh;
 	}
 
-	public <I> boolean acceptIn(F1<L, I> sel, I... c) {
+	public <I> boolean acceptIn(F1<Label, I> sel, I... c) {
 
 		List<I> in = new ArrayList<>();
 		for (I ch : c) {
 			in.add(ch);
 		}
-		return this.run(in, sel).iterator().hasNext();
+		return !this.getPaths(in, sel).isEmpty();
 
 	}
 
+	public <B> Fst<B> mapLabels(F1<Label, B> f) {
+		// TODO implement
+		for (Transition<Label> t : transitions) {
+			
+		}
+		return null;
+	}
 }

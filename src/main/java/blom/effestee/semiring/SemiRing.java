@@ -68,7 +68,6 @@ public abstract class SemiRing<A> {
 				return false;
 			return true;
 		}
-
 	}
 
 }

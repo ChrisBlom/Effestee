@@ -1,23 +1,20 @@
 package blom.effestee.semiring;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import blom.effestee.logic.BooleanTerm;
-
 public class SequencesSemiRing<A> extends SemiRing<Set<List<A>>> {
-
+	
 	static <X> List<X> concat(List<X> x, List<X> y) {
-		ArrayList concat = new ArrayList<>(x.size() + y.size());
+		ArrayList<X> concat = new ArrayList<>(x.size() + y.size());
 		concat.addAll(x);
 		concat.addAll(y);
 		return concat;
 	}
-
+	
 	@Override
 	public Set<List<A>> plus(Set<List<A>> x, Set<List<A>> y) {
 		Set<List<A>> union = new HashSet<>();
@@ -28,13 +25,13 @@ public class SequencesSemiRing<A> extends SemiRing<Set<List<A>>> {
 
 	@Override
 	public Set<List<A>> times(Set<List<A>> x, Set<List<A>> y) {
-		Set<List<A>> res = new HashSet<>();
+		Set<List<A>> product = new HashSet<>();
 		for (List<A> a : x) {
 			for (List<A> b : y) {
-				res.add(concat(a, b));
+				product.add(concat(a, b));
 			}
 		}
-		return res;
+		return product;
 	}
 
 	@Override
@@ -51,4 +48,5 @@ public class SequencesSemiRing<A> extends SemiRing<Set<List<A>>> {
 		return wrap(Collections.singleton(Collections.singletonList(val)));
 	}
 
+	
 }
