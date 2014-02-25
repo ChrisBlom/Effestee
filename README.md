@@ -3,8 +3,8 @@ Effestee
 
 a Finite State Transducer library for Java
 
-A Finite State Transducers (FST) is an structure which efficiently describes a
-relation betweens sets of sequences. 
+A Finite State Transducer (FST) is an data structure that efficiently describes a
+relation betweens sets of string. 
 
-FST are really usefull for working with strings, this library aims to provide a toolkit
+FST are really useful for working with strings, this library aims to provide a toolkit
 to create, manipulate, optimize and run FST's
